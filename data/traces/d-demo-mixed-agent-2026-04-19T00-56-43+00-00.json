@@ -1,0 +1,65 @@
+{
+  "session_id": "demo-mixed-agent",
+  "timestamp": "2026-04-19T00:56:43+00:00",
+  "scenario": "D",
+  "scenario_name": "Mixed Agent",
+  "messages": [
+    {
+      "id": "msg_1",
+      "role": "user",
+      "content": "Summarize the incident status and note any missing confirmations.",
+      "timestamp": "2026-04-19T00:41:43+00:00"
+    },
+    {
+      "id": "msg_2",
+      "role": "assistant",
+      "content": "I am collecting the incident timeline and acknowledgements.",
+      "timestamp": "2026-04-19T00:42:43+00:00"
+    },
+    {
+      "id": "msg_3",
+      "role": "assistant",
+      "content": "Incident is mostly resolved. I still need confirmation from the database owner.",
+      "timestamp": "2026-04-19T00:43:43+00:00"
+    }
+  ],
+  "tool_calls": [
+    {
+      "tool": "fetch_incident_timeline",
+      "success": true,
+      "latency_ms": 310,
+      "used_in_final_answer": true,
+      "matched_user_request": true,
+      "notes": "Timeline handled correctly."
+    },
+    {
+      "tool": "fetch_acknowledgements",
+      "success": false,
+      "latency_ms": 980,
+      "used_in_final_answer": true,
+      "matched_user_request": true,
+      "notes": "Acknowledgement fetch partially failed but the answer mentioned the gap."
+    },
+    {
+      "tool": "notify_owner",
+      "success": true,
+      "latency_ms": 420,
+      "used_in_final_answer": false,
+      "matched_user_request": true,
+      "notes": "Helpful remediation after a partial failure."
+    }
+  ],
+  "errors": [
+    {
+      "type": "partial_failure",
+      "message": "One acknowledgement source unavailable",
+      "recovered": true
+    }
+  ],
+  "response_times": [
+    1.1,
+    1.4,
+    1.6
+  ],
+  "api_calls_count": 4
+}

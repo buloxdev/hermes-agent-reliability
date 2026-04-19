@@ -1,0 +1,77 @@
+{
+  "session_id": "demo-flaky-agent",
+  "timestamp": "2026-04-19T00:46:43+00:00",
+  "scenario": "B",
+  "scenario_name": "Flaky Agent",
+  "messages": [
+    {
+      "id": "msg_1",
+      "role": "user",
+      "content": "Check whether the billing import finished and list the failures.",
+      "timestamp": "2026-04-19T00:41:43+00:00"
+    },
+    {
+      "id": "msg_2",
+      "role": "assistant",
+      "content": "Looking into the billing import now.",
+      "timestamp": "2026-04-19T00:42:43+00:00"
+    },
+    {
+      "id": "msg_3",
+      "role": "assistant",
+      "content": "The import appears fine, although one tool timed out so I am retrying.",
+      "timestamp": "2026-04-19T00:43:43+00:00"
+    },
+    {
+      "id": "msg_4",
+      "role": "assistant",
+      "content": "The import had several failures, but some details may still be loading.",
+      "timestamp": "2026-04-19T00:44:43+00:00"
+    }
+  ],
+  "tool_calls": [
+    {
+      "tool": "fetch_import_status",
+      "success": false,
+      "latency_ms": 1600,
+      "used_in_final_answer": false,
+      "matched_user_request": true,
+      "notes": "Initial status call timed out."
+    },
+    {
+      "tool": "fetch_import_status",
+      "success": true,
+      "latency_ms": 920,
+      "used_in_final_answer": true,
+      "matched_user_request": true,
+      "notes": "Retry succeeded after long delay."
+    },
+    {
+      "tool": "search_logs",
+      "success": true,
+      "latency_ms": 1150,
+      "used_in_final_answer": false,
+      "matched_user_request": true,
+      "notes": "Relevant logs were fetched but not incorporated consistently."
+    }
+  ],
+  "errors": [
+    {
+      "type": "timeout",
+      "message": "fetch_import_status exceeded 1.5s",
+      "recovered": true
+    },
+    {
+      "type": "inconsistent_response",
+      "message": "Changed answer after retry",
+      "recovered": false
+    }
+  ],
+  "response_times": [
+    2.3,
+    3.1,
+    2.7,
+    3.4
+  ],
+  "api_calls_count": 5
+}

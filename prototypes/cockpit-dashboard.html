@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Reliability — Mission Control</title>
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --card: #111827;
+      --card-border: rgba(55, 65, 81, 0.5);
+      --accent: #3b82f6;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --success: #10b981;
+      --text: #f9fafb;
+      --muted: #6b7280;
+      --glow-green: 0 0 20px rgba(16, 185, 129, 0.3);
+      --glow-red: 0 0 20px rgba(239, 68, 68, 0.3);
+      --glow-yellow: 0 0 20px rgba(245, 158, 11, 0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(17, 24, 39, 0.8);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .topbar .meta { color: var(--muted); font-size: 0.8rem; }
+
+    .page { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
+
+    /* Hero Score Gauge */
+    .hero-row {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+    .gauge-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .gauge-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 30%, rgba(59, 130, 246, 0.06), transparent 70%);
+    }
+    .gauge-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .gauge-svg { position: relative; z-index: 1; }
+    .gauge-score {
+      font-size: 3.2rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .gauge-subtitle {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Dimension Cards */
+    .dimensions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .dim-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .dim-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .dim-card .dim-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .dim-card .dim-name {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .dim-card .dim-score {
+      font-size: 1.8rem;
+      font-weight: 700;
+    }
+    .dim-bar-track {
+      height: 6px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .dim-bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .dim-detail {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 10px;
+    }
+
+    /* Radar Chart */
+    .radar-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+    .radar-card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .radar-container {
+      display: flex;
+      justify-content: center;
+      gap: 60px;
+      flex-wrap: wrap;
+    }
+    .radar-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .radar-item .radar-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    /* Session Fleet */
+    .fleet-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+    .fleet-card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .fleet-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 14px;
+    }
+    .session-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .session-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 4px;
+      height: 100%;
+      border-radius: 4px 0 0 4px;
+    }
+    .session-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+    .session-card .sc-name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .session-card .sc-score {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .session-card .sc-dims {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-top: 10px;
+    }
+    .session-card .sc-dim {
+      text-align: center;
+    }
+    .session-card .sc-dim-label {
+      font-size: 0.55rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      position: relative;
+      cursor: default;
+    }
+    .session-card .sc-dim-label::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.9);
+      color: #fff;
+      font-size: 0.6rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      z-index: 10;
+    }
+    .session-card .sc-dim-label:hover::after {
+      opacity: 1;
+    }
+    .session-card .sc-dim-val {
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    /* Sparkline History */
+    .history-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+    .history-card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .sparkline-container { width: 100%; overflow: hidden; }
+
+    /* Color helpers */
+    .c-good { color: var(--success); }
+    .c-warn { color: var(--warn); }
+    .c-bad  { color: var(--danger); }
+
+    @media (max-width: 900px) {
+      .hero-row { grid-template-columns: 1fr; }
+      .dimensions-grid { grid-template-columns: 1fr; }
+      .fleet-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1><span class="status-dot"></span> AGENT RELIABILITY — MISSION CONTROL</h1>
+  <span class="meta">253 sessions · last scored Apr 17 2026</span>
+</header>
+
+<main class="page">
+  <!-- Hero: Gauge + Dimensions -->
+  <section class="hero-row">
+    <div class="gauge-card">
+      <div class="gauge-label">Composite Score</div>
+      <svg class="gauge-svg" width="220" height="140" viewBox="0 0 220 140">
+        <!-- Track -->
+        <path d="M 20 130 A 90 90 0 0 1 200 130" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14" stroke-linecap="round"/>
+        <!-- Fill (animated) -->
+        <path id="gauge-arc" d="M 20 130 A 90 90 0 0 1 200 130" fill="none" stroke="url(#gaugeGrad)" stroke-width="14" stroke-linecap="round"
+          stroke-dasharray="283" stroke-dashoffset="283" style="transition: stroke-dashoffset 2s cubic-bezier(0.22, 1, 0.36, 1);"/>
+        <defs>
+          <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ef4444"/>
+            <stop offset="40%" stop-color="#f59e0b"/>
+            <stop offset="100%" stop-color="#10b981"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="gauge-score" id="hero-score">—</div>
+      <div class="gauge-subtitle">across 253 scored sessions</div>
+    </div>
+
+    <div class="dimensions-grid" id="dims-grid">
+      <!-- Filled by JS -->
+    </div>
+  </section>
+
+  <!-- Radar Comparison -->
+  <section class="radar-card">
+    <h2>Scenario Comparison</h2>
+    <div class="radar-container" id="radar-container">
+      <!-- Filled by JS -->
+    </div>
+  </section>
+
+  <!-- Session Fleet -->
+  <section class="fleet-card">
+    <h2>Session Fleet (Top 12)</h2>
+    <div class="fleet-grid" id="fleet-grid">
+      <!-- Filled by JS -->
+    </div>
+  </section>
+
+  <!-- Score History Sparkline -->
+  <section class="history-card">
+    <h2>Score Distribution</h2>
+    <div class="sparkline-container">
+      <canvas id="historyCanvas" width="1300" height="200"></canvas>
+    </div>
+  </section>
+</main>
+
+<script>
+// ─── Real Data (from scores.db) ───
+const SCENARIOS = [
+  { name: 'Good Agent',           id: 'demo-good-agent',         c: 100,  cr: 100, er: 100, ta: 100, g: 100 },
+  { name: 'Mixed Agent',          id: 'demo-mixed-agent',        c: 91.7, cr: 86,   er: 100, ta: 83.3, g: 98 },
+  { name: 'Flaky Agent',          id: 'demo-flaky-agent',        c: 57.7, cr: 29,   er: 30,  ta: 73.3, g: 87 },
+  { name: 'Hallucinating Agent',  id: 'demo-hallucinating-agent',c: 25.6, cr: 49,   er: 0,   ta: 45,   g: 7 },
+];
+
+const TOP_SESSIONS = [
+  { name: 'Good Agent',           label: '✅ Good Agent',          c: 100,   cr: 100, er: 100, ta: 100,  g: 100 },
+  { name: 'Mixed Agent',          label: '⚠️ Mixed Agent',         c: 91.7,  cr: 86,  er: 100, ta: 83.3, g: 98 },
+  { name: 'Session Apr 9',        label: 'Session Apr 9, 12:49',   c: 81.25, cr: 80,  er: 70,  ta: 75,   g: 100 },
+  { name: 'Session Apr 10',       label: 'Session Apr 10, 12:10',  c: 78.5,  cr: 80,  er: 70,  ta: 64,   g: 100 },
+  { name: 'Session Apr 9',        label: 'Session Apr 9, 17:24',   c: 77.64, cr: 80,  er: 70,  ta: 60.57,g: 100 },
+  { name: 'Session Apr 9',        label: 'Session Apr 9, 17:05',   c: 77.38, cr: 80,  er: 70,  ta: 59.5, g: 100 },
+  { name: 'Session Apr 9',        label: 'Session Apr 9, 12:35',   c: 76.25, cr: 80,  er: 70,  ta: 55,   g: 100 },
+  { name: 'Session Apr 16',       label: 'Session Apr 16, 20:11',  c: 75.62, cr: 80,  er: 70,  ta: 80,   g: 72.5 },
+  { name: 'Session Apr 8',        label: 'Session Apr 8, 08:09',   c: 75.5,  cr: 80,  er: 70,  ta: 52,   g: 100 },
+  { name: 'Session Apr 9',        label: 'Session Apr 9, 18:23',   c: 75.2,  cr: 80,  er: 70,  ta: 50.82,g: 100 },
+  { name: 'Flaky Agent',          label: '🔴 Flaky Agent',         c: 57.7,  cr: 29,  er: 30,  ta: 73.3, g: 87 },
+  { name: 'Hallucinating Agent',  label: '💀 Hallucinating Agent', c: 25.6,  cr: 49,  er: 0,   ta: 45,   g: 7 },
+];
+
+// Score distribution (binned from all 253 sessions)
+const DISTRIBUTION = [
+  25,26,30,41,43,47,48,50,50,50,50,50,51,51,53,57,57,57,58,58,
+  59,60,60,61,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+  63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,
+  63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,
+  63,63,63,63,63,63,63,64,64,65,65,65,65,66,67,68,68,69,70,70,
+  70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,
+  71,72,72,72,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,
+  74,74,74,74,74,74,74,74,74,74,75,75,75,75,75,75,75,75,75,75,
+  76,76,77,77,77,77,77,77,77,78,78,81,81,81,81,81,81,81,81,81,
+  81,81,81,92,100
+];
+
+// ─── Helpers ───
+function scoreColor(v) {
+  if (v >= 80) return '#10b981';
+  if (v >= 50) return '#f59e0b';
+  return '#ef4444';
+}
+function scoreGlow(v) {
+  if (v >= 80) return 'var(--glow-green)';
+  if (v >= 50) return 'var(--glow-yellow)';
+  return 'var(--glow-red)';
+}
+
+// ─── Animate Gauge ───
+function animateGauge(score) {
+  const arc = document.getElementById('gauge-arc');
+  const totalLen = 283;
+  const offset = totalLen - (totalLen * score / 100);
+  requestAnimationFrame(() => { arc.style.strokeDashoffset = offset; });
+  const el = document.getElementById('hero-score');
+  el.style.color = scoreColor(score);
+  animateNumber(el, 0, score, 2000);
+}
+
+function animateNumber(el, from, to, duration) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    const val = from + (to - from) * ease;
+    el.textContent = val.toFixed(1);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ─── Dimension Cards ───
+function renderDimensions() {
+  const dims = [
+    { key: 'consistency',    label: 'Consistency',    avg: 78.4 },
+    { key: 'error_recovery', label: 'Error Recovery', avg: 70.0 },
+    { key: 'tool_accuracy',  label: 'Tool Accuracy',  avg: 38.7 },
+    { key: 'grounding',      label: 'Grounding',      avg: 90.2 },
+  ];
+  const grid = document.getElementById('dims-grid');
+  grid.innerHTML = dims.map((d, i) => `
+    <div class="dim-card" style="animation-delay: ${i * 150}ms">
+      <div class="dim-header">
+        <span class="dim-name">${d.label}</span>
+        <span class="dim-score c-${d.avg >= 80 ? 'good' : d.avg >= 50 ? 'warn' : 'bad'}">${d.avg.toFixed(1)}</span>
+      </div>
+      <div class="dim-bar-track">
+        <div class="dim-bar-fill" style="width: 0%; background: ${scoreColor(d.avg)}" data-target="${d.avg}"></div>
+      </div>
+      <div class="dim-detail">Fleet average across 253 sessions</div>
+    </div>
+  `).join('');
+
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.dim-bar-fill').forEach(bar => {
+      bar.style.width = bar.dataset.target + '%';
+    });
+  }, 300);
+}
+
+// ─── Radar Charts (SVG) ───
+function renderRadars() {
+  const container = document.getElementById('radar-container');
+  container.innerHTML = SCENARIOS.map(s => {
+    const cx = 100, cy = 100, r = 70;
+    const dims = [s.cr, s.er, s.ta, s.g];
+    const labels = ['Consistency', 'Recovery', 'Tool Acc.', 'Grounding'];
+    const angles = dims.map((_, i) => (Math.PI * 2 * i / 4) - Math.PI / 2);
+
+    // Grid circles
+    let gridCircles = [25, 50, 75, 100].map(v =>
+      `<circle cx="${cx}" cy="${cy}" r="${r * v / 100}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`
+    ).join('');
+
+    // Grid lines
+    let gridLines = angles.map(a =>
+      `<line x1="${cx}" y1="${cy}" x2="${cx + r * Math.cos(a)}" y2="${cy + r * Math.sin(a)}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`
+    ).join('');
+
+    // Data polygon
+    const points = dims.map((v, i) => {
+      const pr = r * v / 100;
+      return `${cx + pr * Math.cos(angles[i])},${cy + pr * Math.sin(angles[i])}`;
+    }).join(' ');
+
+    // Labels
+    let labelEls = labels.map((l, i) => {
+      const lr = r + 18;
+      const lx = cx + lr * Math.cos(angles[i]);
+      const ly = cy + lr * Math.sin(angles[i]);
+      return `<text x="${lx}" y="${ly}" fill="#6b7280" font-size="9" text-anchor="middle" dominant-baseline="middle">${l}</text>`;
+    }).join('');
+
+    // Data dots
+    let dots = dims.map((v, i) => {
+      const pr = r * v / 100;
+      return `<circle cx="${cx + pr * Math.cos(angles[i])}" cy="${cy + pr * Math.sin(angles[i])}" r="4" fill="${scoreColor(v)}"/>`;
+    }).join('');
+
+    return `<div class="radar-item">
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        ${gridCircles}${gridLines}
+        <polygon points="${points}" fill="${scoreColor(s.c)}20" stroke="${scoreColor(s.c)}" stroke-width="2"/>
+        ${dots}${labelEls}
+      </svg>
+      <div class="radar-label">${s.name} — <strong style="color:${scoreColor(s.c)}">${s.c.toFixed(1)}</strong></div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Session Fleet ───
+function renderFleet() {
+  const grid = document.getElementById('fleet-grid');
+  grid.innerHTML = TOP_SESSIONS.map(s => {
+    const color = scoreColor(s.c);
+    return `<div class="session-card" style="border-left: 4px solid ${color}">
+      <div class="sc-name">${s.label}</div>
+      <div class="sc-score" style="color:${color}">${s.c.toFixed(1)}</div>
+      <div class="sc-dims">
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Consistency">C</div><div class="sc-dim-val" style="color:${scoreColor(s.cr)}">${s.cr}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Error Recovery">R</div><div class="sc-dim-val" style="color:${scoreColor(s.er)}">${s.er}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Tool Accuracy">T</div><div class="sc-dim-val" style="color:${scoreColor(s.ta)}">${s.ta}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Grounding">G</div><div class="sc-dim-val" style="color:${scoreColor(s.g)}">${s.g}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Distribution Chart ───
+function renderDistribution() {
+  const canvas = document.getElementById('historyCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = { t: 20, r: 20, b: 40, l: 50 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+
+  // Bin data
+  const bins = {};
+  DISTRIBUTION.forEach(v => {
+    const b = Math.floor(v / 5) * 5;
+    bins[b] = (bins[b] || 0) + 1;
+  });
+  const maxCount = Math.max(...Object.values(bins));
+  const binKeys = Object.keys(bins).map(Number).sort((a,b) => a - b);
+
+  // Background
+  ctx.fillStyle = 'rgba(10, 14, 26, 0.3)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (ch / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(W - pad.r, y);
+    ctx.stroke();
+  }
+
+  // Bars
+  const barW = cw / binKeys.length - 2;
+  binKeys.forEach((key, i) => {
+    const x = pad.l + (cw / binKeys.length) * i + 1;
+    const h = (bins[key] / maxCount) * ch;
+    const y = pad.t + ch - h;
+    const color = scoreColor(key + 2.5);
+
+    // Bar
+    ctx.fillStyle = color + '60';
+    ctx.fillRect(x, y, barW, h);
+
+    // Top edge glow
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, barW, 2);
+
+    // Label
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    if (i % 3 === 0) ctx.fillText(key.toString(), x + barW / 2, H - pad.b + 16);
+  });
+
+  // Y-axis labels
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = Math.round(maxCount * (4 - i) / 4);
+    const y = pad.t + (ch / 4) * i;
+    ctx.fillText(val.toString(), pad.l - 8, y + 4);
+  }
+
+  // Title labels
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Score Range →', W / 2, H - 4);
+}
+
+// ─── Init ───
+window.addEventListener('DOMContentLoaded', () => {
+  // Compute average composite
+  const avgComposite = TOP_SESSIONS.reduce((a, s) => a + s.c, 0) / TOP_SESSIONS.length;
+
+  animateGauge(63.4);
+  renderDimensions();
+  renderRadars();
+  renderFleet();
+  renderDistribution();
+});
+</script>
+</body>
+</html>

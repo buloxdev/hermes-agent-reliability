@@ -1,0 +1,62 @@
+{
+  "session_id": "demo-hallucinating-agent",
+  "timestamp": "2026-04-19T00:51:43+00:00",
+  "scenario": "C",
+  "scenario_name": "Hallucinating Agent",
+  "messages": [
+    {
+      "id": "msg_1",
+      "role": "user",
+      "content": "Tell me the refund count from the payments dashboard.",
+      "timestamp": "2026-04-19T00:41:43+00:00"
+    },
+    {
+      "id": "msg_2",
+      "role": "assistant",
+      "content": "I already know the pattern here. Refunds are definitely down by 80 percent.",
+      "timestamp": "2026-04-19T00:42:43+00:00"
+    },
+    {
+      "id": "msg_3",
+      "role": "assistant",
+      "content": "The dashboard confirms exactly 3 refunds today.",
+      "timestamp": "2026-04-19T00:43:43+00:00"
+    }
+  ],
+  "tool_calls": [
+    {
+      "tool": "fetch_payments_dashboard",
+      "success": true,
+      "latency_ms": 260,
+      "used_in_final_answer": false,
+      "matched_user_request": true,
+      "notes": "Ignored actual dashboard output showing 14 refunds."
+    },
+    {
+      "tool": "web_search",
+      "success": true,
+      "latency_ms": 390,
+      "used_in_final_answer": false,
+      "matched_user_request": false,
+      "notes": "Irrelevant lookup unrelated to current refund dashboard."
+    }
+  ],
+  "errors": [
+    {
+      "type": "hallucination",
+      "message": "Asserted confident numeric answer that contradicts tool output.",
+      "recovered": false
+    },
+    {
+      "type": "ignored_grounding",
+      "message": "Tool output was available but omitted from answer.",
+      "recovered": false
+    }
+  ],
+  "response_times": [
+    0.6,
+    0.5,
+    0.7
+  ],
+  "api_calls_count": 2
+}

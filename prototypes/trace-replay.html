@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Reliability — Trace Replay</title>
+  <style>
+    :root {
+      --bg: #09090f;
+      --card: #111118;
+      --card-border: rgba(55, 65, 81, 0.4);
+      --accent: #6366f1;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --success: #10b981;
+      --info: #3b82f6;
+      --text: #e5e7eb;
+      --muted: #6b7280;
+      --user-bubble: #1e293b;
+      --assistant-bubble: #172554;
+      --tool-bubble: #1a1a2e;
+      --error-bubble: rgba(239, 68, 68, 0.1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      min-height: 100vh;
+    }
+
+    /* Left: Timeline */
+    .timeline-panel {
+      padding: 24px 32px;
+      overflow-y: auto;
+      border-right: 1px solid var(--card-border);
+    }
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .timeline-header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .scenario-selector {
+      display: flex;
+      gap: 8px;
+    }
+    .scenario-btn {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 6px 14px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .scenario-btn:hover, .scenario-btn.active {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .ctrl-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 20px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ctrl-btn:hover { background: rgba(255,255,255,0.1); }
+    .ctrl-btn.primary { background: var(--accent); border-color: var(--accent); }
+    .ctrl-btn.primary:hover { background: #5558e6; }
+
+    /* Timeline events */
+    .timeline { position: relative; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 20px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--card-border);
+    }
+
+    .event {
+      position: relative;
+      padding-left: 52px;
+      margin-bottom: 16px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .event.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .event-dot {
+      position: absolute;
+      left: 13px;
+      top: 14px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 3px solid;
+      background: var(--bg);
+      z-index: 1;
+    }
+    .event-bubble {
+      border-radius: 14px;
+      padding: 14px 18px;
+      border: 1px solid var(--card-border);
+      max-width: 600px;
+    }
+    .event-meta {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .event-content {
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .event-tag {
+      display: inline-block;
+      font-size: 0.6rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Event types */
+    .ev-user .event-dot { border-color: var(--info); }
+    .ev-user .event-bubble { background: var(--user-bubble); }
+    .ev-assistant .event-dot { border-color: var(--accent); }
+    .ev-assistant .event-bubble { background: var(--assistant-bubble); }
+    .ev-tool .event-dot { border-color: var(--success); }
+    .ev-tool .event-bubble { background: var(--tool-bubble); }
+    .ev-tool-fail .event-dot { border-color: var(--danger); }
+    .ev-tool-fail .event-bubble { background: var(--tool-bubble); border-color: rgba(239,68,68,0.3); }
+    .ev-error .event-dot { border-color: var(--danger); background: var(--danger); }
+    .ev-error .event-bubble { background: var(--error-bubble); border-color: rgba(239,68,68,0.3); }
+    .ev-score .event-dot { border-color: var(--warn); }
+    .ev-score .event-bubble { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+
+    /* Right: Score Panel */
+    .score-panel {
+      background: var(--card);
+      padding: 28px 24px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .score-panel h2 {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 20px;
+    }
+    .score-big {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .score-big .label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .score-big .value {
+      font-size: 4rem;
+      font-weight: 800;
+      line-height: 1;
+      margin: 8px 0;
+      transition: color 0.5s;
+    }
+    .score-big .subtitle {
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .dim-row {
+      margin-bottom: 18px;
+    }
+    .dim-row .dim-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+    }
+    .dim-row .dim-label { color: var(--muted); }
+    .dim-row .dim-val { font-weight: 700; }
+    .dim-bar {
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .dim-bar-fill {
+      height: 100%;
+      border-radius: inherit;
+      transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1), background 0.5s;
+    }
+
+    .event-log {
+      margin-top: 28px;
+      border-top: 1px solid var(--card-border);
+      padding-top: 16px;
+    }
+    .event-log h3 {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+    .log-entry {
+      font-size: 0.7rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      opacity: 0;
+      transform: translateX(10px);
+      transition: all 0.4s;
+    }
+    .log-entry.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    .log-entry.log-tool { color: var(--success); background: rgba(16,185,129,0.06); }
+    .log-entry.log-error { color: var(--danger); background: rgba(239,68,68,0.06); }
+    .log-entry.log-score { color: var(--warn); background: rgba(245,158,11,0.06); }
+    .log-entry.log-info { color: var(--info); background: rgba(59,130,246,0.06); }
+
+    .tool-network {
+      margin-top: 24px;
+      border-top: 1px solid var(--card-border);
+      padding-top: 16px;
+    }
+    .tool-network h3 {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .score-panel { height: auto; position: relative; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Left: Timeline -->
+  <div class="timeline-panel">
+    <div class="timeline-header">
+      <h1>🔍 Trace Replay</h1>
+      <div class="scenario-selector">
+        <button class="scenario-btn active" data-scenario="good">Good</button>
+        <button class="scenario-btn" data-scenario="flaky">Flaky</button>
+        <button class="scenario-btn" data-scenario="hallucinating">Hallucinating</button>
+        <button class="scenario-btn" data-scenario="mixed">Mixed</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn primary" id="btn-play">▶ Play</button>
+      <button class="ctrl-btn" id="btn-step">⏭ Step</button>
+      <button class="ctrl-btn" id="btn-reset">↺ Reset</button>
+      <span style="color:var(--muted);font-size:0.75rem;align-self:center;margin-left:auto" id="step-counter">0 / 0</span>
+    </div>
+
+    <div class="timeline" id="timeline">
+      <!-- Events injected by JS -->
+    </div>
+  </div>
+
+  <!-- Right: Score Panel -->
+  <div class="score-panel">
+    <h2>Live Score</h2>
+    <div class="score-big">
+      <div class="label">Composite</div>
+      <div class="value" id="live-composite">—</div>
+      <div class="subtitle" id="live-label">Waiting to start...</div>
+    </div>
+
+    <div id="dims-container">
+      <div class="dim-row">
+        <div class="dim-header"><span class="dim-label">Consistency</span><span class="dim-val" id="dv-cr">—</span></div>
+        <div class="dim-bar"><div class="dim-bar-fill" id="db-cr" style="width:0"></div></div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-header"><span class="dim-label">Error Recovery</span><span class="dim-val" id="dv-er">—</span></div>
+        <div class="dim-bar"><div class="dim-bar-fill" id="db-er" style="width:0"></div></div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-header"><span class="dim-label">Tool Accuracy</span><span class="dim-val" id="dv-ta">—</span></div>
+        <div class="dim-bar"><div class="dim-bar-fill" id="db-ta" style="width:0"></div></div>
+      </div>
+      <div class="dim-row">
+        <div class="dim-header"><span class="dim-label">Grounding</span><span class="dim-val" id="dv-g">—</span></div>
+        <div class="dim-bar"><div class="dim-bar-fill" id="db-g" style="width:0"></div></div>
+      </div>
+    </div>
+
+    <div class="event-log">
+      <h3>Event Log</h3>
+      <div id="log-entries"></div>
+    </div>
+
+    <div class="tool-network">
+      <h3>Tool Graph</h3>
+      <svg id="tool-graph" width="290" height="180" viewBox="0 0 290 180"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Scenario Definitions ───
+const SCENARIOS = {
+  good: {
+    name: 'Good Agent',
+    final: { c: 100, cr: 100, er: 100, ta: 100, g: 100 },
+    events: [
+      { type: 'user', content: 'Find the latest deployment status and summarize the release risk.', ts: '00:00' },
+      { type: 'assistant', content: 'I will check the deployment records and compare them with the latest failing checks.', ts: '00:01' },
+      { type: 'tool', tool: 'search_deployments', success: true, latency: 210, notes: 'Used the right deployment lookup immediately.', ts: '00:01' },
+      { type: 'tool', tool: 'fetch_ci_status', success: true, latency: 240, notes: 'Cross-checked deployment with CI before responding.', ts: '00:02' },
+      { type: 'score', cr: 100, er: 100, ta: 100, g: 95, c: 98.8, ts: '00:02' },
+      { type: 'assistant', content: 'Deployment completed successfully. No blocking regressions were found and one flaky warning was retried successfully.', ts: '00:03' },
+      { type: 'score', cr: 100, er: 100, ta: 100, g: 100, c: 100, ts: '00:03' },
+    ]
+  },
+  flaky: {
+    name: 'Flaky Agent',
+    final: { c: 57.7, cr: 29, er: 30, ta: 73.3, g: 87 },
+    events: [
+      { type: 'user', content: 'Check whether the billing import finished and list the failures.', ts: '00:00' },
+      { type: 'assistant', content: 'Looking into the billing import now.', ts: '00:02' },
+      { type: 'tool', tool: 'fetch_import_status', success: false, latency: 1600, notes: 'Initial status call timed out.', ts: '00:04' },
+      { type: 'error', error_type: 'timeout', message: 'fetch_import_status exceeded 1.5s', recovered: true, ts: '00:04' },
+      { type: 'score', cr: 50, er: 35, ta: 55, g: 87, c: 56.8, ts: '00:04' },
+      { type: 'assistant', content: 'The import appears fine, although one tool timed out so I am retrying.', ts: '00:06' },
+      { type: 'tool', tool: 'fetch_import_status', success: true, latency: 920, notes: 'Retry succeeded after long delay.', ts: '00:07' },
+      { type: 'tool', tool: 'search_logs', success: true, latency: 1150, notes: 'Relevant logs fetched but not incorporated consistently.', ts: '00:08' },
+      { type: 'score', cr: 40, er: 55, ta: 70, g: 87, c: 63, ts: '00:08' },
+      { type: 'assistant', content: 'The import had several failures, but some details may still be loading.', ts: '00:09' },
+      { type: 'error', error_type: 'inconsistent_response', message: 'Changed answer after retry', recovered: false, ts: '00:09' },
+      { type: 'score', cr: 29, er: 30, ta: 73.3, g: 87, c: 57.7, ts: '00:10' },
+    ]
+  },
+  hallucinating: {
+    name: 'Hallucinating Agent',
+    final: { c: 25.6, cr: 49, er: 0, ta: 45, g: 7 },
+    events: [
+      { type: 'user', content: 'Tell me the refund count from the payments dashboard.', ts: '00:00' },
+      { type: 'assistant', content: 'I already know the pattern here. Refunds are definitely down by 80 percent.', ts: '00:01' },
+      { type: 'error', error_type: 'hallucination', message: 'Asserted confident numeric answer that contradicts tool output.', recovered: false, ts: '00:01' },
+      { type: 'score', cr: 40, er: 0, ta: 50, g: 15, c: 26.3, ts: '00:01' },
+      { type: 'tool', tool: 'fetch_payments_dashboard', success: true, latency: 260, notes: 'Ignored actual dashboard output showing 14 refunds.', ts: '00:02' },
+      { type: 'tool', tool: 'web_search', success: true, latency: 390, notes: 'Irrelevant lookup unrelated to current refund dashboard.', ts: '00:03' },
+      { type: 'error', error_type: 'ignored_grounding', message: 'Tool output was available but omitted from answer.', recovered: false, ts: '00:03' },
+      { type: 'score', cr: 40, er: 0, ta: 40, g: 7, c: 21.8, ts: '00:03' },
+      { type: 'assistant', content: 'The dashboard confirms exactly 3 refunds today.', ts: '00:04' },
+      { type: 'score', cr: 49, er: 0, ta: 45, g: 7, c: 25.6, ts: '00:04' },
+    ]
+  },
+  mixed: {
+    name: 'Mixed Agent',
+    final: { c: 91.7, cr: 86, er: 100, ta: 83.3, g: 98 },
+    events: [
+      { type: 'user', content: 'Summarize the incident status and note any missing confirmations.', ts: '00:00' },
+      { type: 'assistant', content: 'I am collecting the incident timeline and acknowledgements.', ts: '00:01' },
+      { type: 'tool', tool: 'fetch_incident_timeline', success: true, latency: 310, notes: 'Timeline handled correctly.', ts: '00:02' },
+      { type: 'score', cr: 88, er: 100, ta: 85, g: 95, c: 92, ts: '00:02' },
+      { type: 'tool', tool: 'fetch_acknowledgements', success: false, latency: 980, notes: 'Acknowledgement fetch partially failed.', ts: '00:03' },
+      { type: 'error', error_type: 'partial_failure', message: 'One acknowledgement source unavailable', recovered: true, ts: '00:03' },
+      { type: 'score', cr: 84, er: 90, ta: 78, g: 92, c: 86, ts: '00:03' },
+      { type: 'tool', tool: 'notify_owner', success: true, latency: 420, notes: 'Helpful remediation after partial failure.', ts: '00:04' },
+      { type: 'assistant', content: 'Incident is mostly resolved. I still need confirmation from the database owner.', ts: '00:05' },
+      { type: 'score', cr: 86, er: 100, ta: 83.3, g: 98, c: 91.7, ts: '00:05' },
+    ]
+  }
+};
+
+// ─── State ───
+let currentScenario = 'good';
+let currentIndex = -1;
+let playing = false;
+let playInterval = null;
+
+// ─── Helpers ───
+function scoreColor(v) {
+  if (v >= 80) return '#10b981';
+  if (v >= 50) return '#f59e0b';
+  return '#ef4444';
+}
+function animateNumber(el, from, to, duration = 600) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 3);
+    el.textContent = (from + (to - from) * ease).toFixed(1);
+    el.style.color = scoreColor(from + (to - from) * ease);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ─── Render Timeline ───
+function renderTimeline() {
+  const sc = SCENARIOS[currentScenario];
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = sc.events.map((ev, i) => {
+    let cls = 'ev-' + ev.type;
+    let content = '';
+    let tag = '';
+
+    if (ev.type === 'user') {
+      content = ev.content;
+      tag = '<span class="event-tag" style="background:rgba(59,130,246,0.15);color:#60a5fa">USER</span>';
+    } else if (ev.type === 'assistant') {
+      content = ev.content;
+      tag = '<span class="event-tag" style="background:rgba(99,102,241,0.15);color:#818cf8">AGENT</span>';
+    } else if (ev.type === 'tool') {
+      cls = ev.success ? 'ev-tool' : 'ev-tool-fail';
+      content = `<strong>${ev.tool}</strong> — ${ev.success ? '✅ success' : '❌ failed'} (${ev.latency}ms)<br><span style="color:var(--muted);font-size:0.75rem">${ev.notes}</span>`;
+      tag = `<span class="event-tag" style="background:${ev.success ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${ev.success ? '#34d399' : '#f87171'}">TOOL</span>`;
+    } else if (ev.type === 'error') {
+      content = `<strong>${ev.error_type}</strong>: ${ev.message}<br>${ev.recovered ? '<span style="color:#34d399">↻ Recovered</span>' : '<span style="color:#f87171">✗ Not recovered</span>'}`;
+      tag = '<span class="event-tag" style="background:rgba(239,68,68,0.15);color:#f87171">ERROR</span>';
+    } else if (ev.type === 'score') {
+      content = `C=${ev.cr} · R=${ev.er} · T=${ev.ta} · G=${ev.g} → <strong style="color:${scoreColor(ev.c)}">${ev.c.toFixed(1)}</strong>`;
+      tag = '<span class="event-tag" style="background:rgba(245,158,11,0.15);color:#fbbf24">SCORE</span>';
+    }
+
+    return `<div class="event ${cls}" data-index="${i}">
+      <div class="event-dot"></div>
+      <div class="event-bubble">
+        <div class="event-meta"><span>${tag}</span><span>${ev.ts}</span></div>
+        <div class="event-content">${content}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Update Scores ───
+function updateScores(ev) {
+  if (ev.type !== 'score') return;
+
+  const prev = {
+    c: parseFloat(document.getElementById('live-composite').textContent) || 0,
+    cr: parseFloat(document.getElementById('dv-cr').textContent) || 0,
+    er: parseFloat(document.getElementById('dv-er').textContent) || 0,
+    ta: parseFloat(document.getElementById('dv-ta').textContent) || 0,
+    g: parseFloat(document.getElementById('dv-g').textContent) || 0,
+  };
+
+  animateNumber(document.getElementById('live-composite'), prev.c, ev.c);
+  document.getElementById('live-label').textContent = `Step ${currentIndex + 1}`;
+
+  animateNumber(document.getElementById('dv-cr'), prev.cr, ev.cr);
+  animateNumber(document.getElementById('dv-er'), prev.er, ev.er);
+  animateNumber(document.getElementById('dv-ta'), prev.ta, ev.ta);
+  animateNumber(document.getElementById('dv-g'), prev.g, ev.g);
+
+  document.getElementById('db-cr').style.width = ev.cr + '%';
+  document.getElementById('db-cr').style.background = scoreColor(ev.cr);
+  document.getElementById('db-er').style.width = ev.er + '%';
+  document.getElementById('db-er').style.background = scoreColor(ev.er);
+  document.getElementById('db-ta').style.width = ev.ta + '%';
+  document.getElementById('db-ta').style.background = scoreColor(ev.ta);
+  document.getElementById('db-g').style.width = ev.g + '%';
+  document.getElementById('db-g').style.background = scoreColor(ev.g);
+}
+
+// ─── Add Log Entry ───
+function addLogEntry(ev) {
+  const container = document.getElementById('log-entries');
+  let cls = 'log-info';
+  let text = '';
+
+  if (ev.type === 'tool') {
+    cls = ev.success ? 'log-tool' : 'log-error';
+    text = `${ev.tool} ${ev.success ? '✓' : '✗'}`;
+  } else if (ev.type === 'error') {
+    cls = 'log-error';
+    text = `${ev.error_type}: ${ev.recovered ? 'recovered' : 'FAILED'}`;
+  } else if (ev.type === 'score') {
+    cls = 'log-score';
+    text = `Score → ${ev.c.toFixed(1)}`;
+  } else {
+    text = `${ev.type} event`;
+  }
+
+  const div = document.createElement('div');
+  div.className = `log-entry ${cls}`;
+  div.textContent = `[${ev.ts}] ${text}`;
+  container.appendChild(div);
+  requestAnimationFrame(() => div.classList.add('visible'));
+  container.scrollTop = container.scrollHeight;
+}
+
+// ─── Tool Graph ───
+function updateToolGraph(ev) {
+  if (ev.type !== 'tool') return;
+  const svg = document.getElementById('tool-graph');
+  const existing = svg.querySelectorAll('.tool-node').length;
+  const x = 30 + (existing % 4) * 65;
+  const y = 30 + Math.floor(existing / 4) * 55;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.classList.add('tool-node');
+  g.style.opacity = '0';
+  g.style.transition = 'opacity 0.5s';
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x);
+  rect.setAttribute('y', y);
+  rect.setAttribute('width', 55);
+  rect.setAttribute('height', 40);
+  rect.setAttribute('rx', 8);
+  rect.setAttribute('fill', ev.success ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)');
+  rect.setAttribute('stroke', ev.success ? '#10b981' : '#ef4444');
+  rect.setAttribute('stroke-width', '1.5');
+
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('x', x + 27);
+  text.setAttribute('y', y + 22);
+  text.setAttribute('fill', '#e5e7eb');
+  text.setAttribute('font-size', '8');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'middle');
+  text.textContent = ev.tool.substring(0, 10);
+
+  // Connect to previous
+  if (existing > 0) {
+    const prevRect = svg.querySelectorAll('.tool-node rect')[existing - 1];
+    if (prevRect) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      const px = parseFloat(prevRect.getAttribute('x')) + 55;
+      const py = parseFloat(prevRect.getAttribute('y')) + 20;
+      line.setAttribute('x1', px);
+      line.setAttribute('y1', py);
+      line.setAttribute('x2', x);
+      line.setAttribute('y2', y + 20);
+      line.setAttribute('stroke', 'rgba(255,255,255,0.1)');
+      line.setAttribute('stroke-width', '1');
+      line.setAttribute('stroke-dasharray', '4,4');
+      g.appendChild(line);
+    }
+  }
+
+  g.appendChild(rect);
+  g.appendChild(text);
+  svg.appendChild(g);
+  requestAnimationFrame(() => g.style.opacity = '1');
+}
+
+// ─── Step Through ───
+function showStep(index) {
+  const events = document.querySelectorAll('.event');
+  if (index >= events.length) {
+    stopPlay();
+    return;
+  }
+
+  events[index].classList.add('visible');
+  const ev = SCENARIOS[currentScenario].events[index];
+  updateScores(ev);
+  addLogEntry(ev);
+  updateToolGraph(ev);
+
+  currentIndex = index;
+  document.getElementById('step-counter').textContent = `${currentIndex + 1} / ${SCENARIOS[currentScenario].events.length}`;
+}
+
+function stepForward() {
+  if (currentIndex + 1 < SCENARIOS[currentScenario].events.length) {
+    showStep(currentIndex + 1);
+  } else {
+    stopPlay();
+  }
+}
+
+function startPlay() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('btn-play').textContent = '⏸ Pause';
+  playInterval = setInterval(() => {
+    if (currentIndex + 1 >= SCENARIOS[currentScenario].events.length) {
+      stopPlay();
+      return;
+    }
+    stepForward();
+  }, 1200);
+}
+
+function stopPlay() {
+  playing = false;
+  clearInterval(playInterval);
+  document.getElementById('btn-play').textContent = '▶ Play';
+}
+
+function reset() {
+  stopPlay();
+  currentIndex = -1;
+  document.getElementById('timeline').innerHTML = '';
+  document.getElementById('log-entries').innerHTML = '';
+  document.getElementById('tool-graph').innerHTML = '';
+  document.getElementById('live-composite').textContent = '—';
+  document.getElementById('live-composite').style.color = '';
+  document.getElementById('live-label').textContent = 'Waiting to start...';
+  ['cr','er','ta','g'].forEach(k => {
+    document.getElementById('dv-'+k).textContent = '—';
+    document.getElementById('db-'+k).style.width = '0%';
+  });
+  document.getElementById('step-counter').textContent = `0 / ${SCENARIOS[currentScenario].events.length}`;
+  renderTimeline();
+}
+
+// ─── Switch Scenario ───
+function switchScenario(name) {
+  currentScenario = name;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-scenario="${name}"]`).classList.add('active');
+  reset();
+}
+
+// ─── Event Listeners ───
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (playing) stopPlay();
+  else startPlay();
+});
+document.getElementById('btn-step').addEventListener('click', () => {
+  stopPlay();
+  stepForward();
+});
+document.getElementById('btn-reset').addEventListener('click', reset);
+document.querySelectorAll('.scenario-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchScenario(btn.dataset.scenario));
+});
+
+// ─── Init ───
+renderTimeline();
+document.getElementById('step-counter').textContent = `0 / ${SCENARIOS[currentScenario].events.length}`;
+</script>
+</body>
+</html>

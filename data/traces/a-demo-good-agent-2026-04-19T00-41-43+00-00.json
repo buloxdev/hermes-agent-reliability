@@ -1,0 +1,51 @@
+{
+  "session_id": "demo-good-agent",
+  "timestamp": "2026-04-19T00:41:43+00:00",
+  "scenario": "A",
+  "scenario_name": "Good Agent",
+  "messages": [
+    {
+      "id": "msg_1",
+      "role": "user",
+      "content": "Find the latest deployment status and summarize the release risk.",
+      "timestamp": "2026-04-19T00:41:43+00:00"
+    },
+    {
+      "id": "msg_2",
+      "role": "assistant",
+      "content": "I will check the deployment records and compare them with the latest failing checks.",
+      "timestamp": "2026-04-19T00:42:43+00:00"
+    },
+    {
+      "id": "msg_3",
+      "role": "assistant",
+      "content": "Deployment completed successfully. No blocking regressions were found and one flaky warning was retried successfully.",
+      "timestamp": "2026-04-19T00:43:43+00:00"
+    }
+  ],
+  "tool_calls": [
+    {
+      "tool": "search_deployments",
+      "success": true,
+      "latency_ms": 210,
+      "used_in_final_answer": true,
+      "matched_user_request": true,
+      "notes": "Used the right deployment lookup immediately."
+    },
+    {
+      "tool": "fetch_ci_status",
+      "success": true,
+      "latency_ms": 240,
+      "used_in_final_answer": true,
+      "matched_user_request": true,
+      "notes": "Cross-checked deployment with CI before responding."
+    }
+  ],
+  "errors": [],
+  "response_times": [
+    0.8,
+    1.0,
+    0.9
+  ],
+  "api_calls_count": 3
+}
