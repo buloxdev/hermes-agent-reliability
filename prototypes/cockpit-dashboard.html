@@ -397,6 +397,7 @@
 </header>
 
 <main class="page">
+  <div id="alerts-panel" style="display:none;margin-bottom:20px;padding:18px 20px;border-radius:16px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2)"></div>
   <!-- Hero: Gauge + Dimensions -->
   <section class="hero-row">
     <div class="gauge-card">
@@ -434,7 +435,7 @@
 
   <!-- Session Fleet -->
   <section class="fleet-card">
-    <h2>Session Fleet (Top 12)</h2>
+    <h2 id="fleet-heading">Session Fleet</h2>
     <div class="fleet-grid" id="fleet-grid">
       <!-- Filled by JS -->
     </div>
@@ -443,71 +444,9 @@
   <!-- Score History Sparkline -->
   <!-- Score Distribution Histogram -->
   <section class="history-card">
-    <h2>Score Distribution — Fleet (289 sessions)</h2>
-    <div class="histogram-container">
-      <div class="hist-bar-container">
-        <div class="hist-label">30-34</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:0.7%; background:var(--danger)"></div>
-          <div class="hist-count">1</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">40-44</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:1.3%; background:var(--danger)"></div>
-          <div class="hist-count">2</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">50-54</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:2.0%; background:var(--danger)"></div>
-          <div class="hist-count">3</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">55-59</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:36.2%; background:var(--danger)"></div>
-          <div class="hist-count">54</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">60-64</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:100.0%; background:#f59e0b"></div>
-          <div class="hist-count">149</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">65-69</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:9.4%; background:#f59e0b"></div>
-          <div class="hist-count">14</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">70-74</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:34.2%; background:var(--warn)"></div>
-          <div class="hist-count">51</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">75-79</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:7.4%; background:var(--warn)"></div>
-          <div class="hist-count">11</div>
-        </div>
-      </div>
-      <div class="hist-bar-container">
-        <div class="hist-label">80-84</div>
-        <div class="hist-bar-wrap">
-          <div class="hist-bar" style="width:2.7%; background:var(--success)"></div>
-          <div class="hist-count">4</div>
-        </div>
-      </div>
+    <h2 id="dist-heading">Score Distribution</h2>
+    <div class="histogram-container" id="histogram-container">
+      <!-- Filled by JS -->
     </div>
     <div class="histogram-legend">
       <span style="color:var(--success)">● 80-100 (Excellent)</span>
@@ -518,10 +457,8 @@
   </section>
 </main>
 
-</main>
-
 <script>
-// ─── Real Data (from scores.db) ───
+// ─── Reference Benchmarks (static personas) ───
 const SCENARIOS = [
   { name: 'Good Agent',           id: 'demo-good-agent',         c: 100,  cr: 100, er: 100, ta: 100, g: 100 },
   { name: 'Mixed Agent',          id: 'demo-mixed-agent',        c: 91.7, cr: 86,   er: 100, ta: 83.3, g: 98 },
@@ -529,43 +466,8 @@ const SCENARIOS = [
   { name: 'Hallucinating Agent',  id: 'demo-hallucinating-agent',c: 25.6, cr: 49,   er: 0,   ta: 45,   g: 7 },
 ];
 
-const TOP_SESSIONS = [
-  { "name": "demo-good-agent", "label": "✔ Good Agent", "c": 100.0, "cr": 100.0, "er": 100.0, "ta": 100.0, "g": 100.0 },
-  { "name": "demo-mixed-agent", "label": "▲ Mixed Agent", "c": 91.7, "cr": 86.0, "er": 100.0, "ta": 83.3, "g": 98.0 },
-  { "name": "20260409_124938_8cf264", "label": "Session 04-09 • 20260409_1249...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 75.0, "g": 100.0 },
-  { "name": "20260410_120502_0fb82a", "label": "Session 04-10 • 20260410_1205...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 75.0, "g": 100.0 },
-  { "name": "20260415_080433_d8decb77", "label": "Session 04-15 • 20260415_0804...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 75.0, "g": 100.0 },
-  { "name": "20260416_070851_66ddceb8", "label": "Session 04-16 • 20260416_0708...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 75.0, "g": 100.0 },
-  { "name": "20260410_121046_497303", "label": "Session 04-10 • 20260410_1210...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 64.0, "g": 100.0 },
-  { "name": "20260409_172444_76b8b4", "label": "Session 04-09 • 20260409_1724...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 60.6, "g": 100.0 },
-  { "name": "20260409_174148_9ca26b", "label": "Session 04-09 • 20260409_1741...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 60.6, "g": 100.0 },
-  { "name": "20260409_170523_e32947", "label": "Session 04-09 • 20260409_1705...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 59.5, "g": 100.0 },
-  { "name": "20260410_120625_2369ed", "label": "Session 04-10 • 20260410_1206...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 59.5, "g": 100.0 },
-  { "name": "20260409_123550_81cfd0", "label": "Session 04-09 • 20260409_1235...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 55.0, "g": 100.0 },
-  { "name": "20260416_201129_ef59c5", "label": "Session 04-16 • 20260416_2011...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 80.0, "g": 72.5 },
-  { "name": "20260408_080918_7baed3", "label": "Session 04-08 • 20260408_0809...", "c": 80.0, "cr": 80.0, "er": 70.0, "ta": 52.0, "g": 100.0 },
-];
-
-
-// Score distribution (binned from all 253 sessions)
-const DISTRIBUTION = [
-  25,26,30,41,43,47,48,50,50,50,50,50,51,51,53,57,57,57,58,58,
-  59,60,60,61,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
-  63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,
-  63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,
-  63,63,63,63,63,63,63,64,64,65,65,65,65,66,67,68,68,69,70,70,
-  70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,
-  71,72,72,72,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,
-  74,74,74,74,74,74,74,74,74,74,75,75,75,75,75,75,75,75,75,75,
-  76,76,77,77,77,77,77,77,77,78,78,81,81,81,81,81,81,81,81,81,
-  81,81,81,92,100
-];
+// ─── Live Data (populated from monitor-report.json) ───
+let REPORT = null;
 
 // ─── Helpers ───
 function scoreColor(v) {
@@ -578,6 +480,11 @@ function scoreGlow(v) {
   if (v >= 50) return 'var(--glow-yellow)';
   return 'var(--glow-red)';
 }
+function fmtSessionLabel(sid) {
+  if (sid.startsWith('cron_')) return sid;
+  if (sid.length > 20) return sid.slice(0, 8) + '...' + sid.slice(-6);
+  return sid;
+}
 
 // ─── Animate Gauge ───
 function animateGauge(score) {
@@ -587,7 +494,7 @@ function animateGauge(score) {
   requestAnimationFrame(() => { arc.style.strokeDashoffset = offset; });
   const el = document.getElementById('hero-score');
   el.style.color = scoreColor(score);
-  animateNumber(el, 0, score, 2000);
+  animateNumber(el, 0, score, 1200);
 }
 
 function animateNumber(el, from, to, duration) {
@@ -603,12 +510,12 @@ function animateNumber(el, from, to, duration) {
 }
 
 // ─── Dimension Cards ───
-function renderDimensions() {
+function renderDimensions(fleet) {
   const dims = [
-    { key: 'consistency',    label: 'Consistency',    avg: 78.4 },
-    { key: 'error_recovery', label: 'Error Recovery', avg: 70.0 },
-    { key: 'tool_accuracy',  label: 'Tool Accuracy',  avg: 38.7 },
-    { key: 'grounding',      label: 'Grounding',      avg: 90.2 },
+    { key: 'avg_consistency',    label: 'Consistency',    avg: fleet.avg_consistency },
+    { key: 'avg_error_recovery', label: 'Error Recovery', avg: fleet.avg_error_recovery },
+    { key: 'avg_tool_accuracy',  label: 'Tool Accuracy',  avg: fleet.avg_tool_accuracy },
+    { key: 'avg_grounding',      label: 'Grounding',      avg: fleet.avg_grounding },
   ];
   const grid = document.getElementById('dims-grid');
   grid.innerHTML = dims.map((d, i) => `
@@ -620,11 +527,10 @@ function renderDimensions() {
       <div class="dim-bar-track">
         <div class="dim-bar-fill" style="width: 0%; background: ${scoreColor(d.avg)}" data-target="${d.avg}"></div>
       </div>
-      <div class="dim-detail">Fleet average across 253 sessions</div>
+      <div class="dim-detail">Fleet average across ${fleet.sessions_scored} sessions</div>
     </div>
   `).join('');
 
-  // Animate bars
   setTimeout(() => {
     document.querySelectorAll('.dim-bar-fill').forEach(bar => {
       bar.style.width = bar.dataset.target + '%';
@@ -641,23 +547,19 @@ function renderRadars() {
     const labels = ['Consistency', 'Recovery', 'Tool Acc.', 'Grounding'];
     const angles = dims.map((_, i) => (Math.PI * 2 * i / 4) - Math.PI / 2);
 
-    // Grid circles
     let gridCircles = [25, 50, 75, 100].map(v =>
       `<circle cx="${cx}" cy="${cy}" r="${r * v / 100}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`
     ).join('');
 
-    // Grid lines
     let gridLines = angles.map(a =>
       `<line x1="${cx}" y1="${cy}" x2="${cx + r * Math.cos(a)}" y2="${cy + r * Math.sin(a)}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`
     ).join('');
 
-    // Data polygon
     const points = dims.map((v, i) => {
       const pr = r * v / 100;
       return `${cx + pr * Math.cos(angles[i])},${cy + pr * Math.sin(angles[i])}`;
     }).join(' ');
 
-    // Labels
     let labelEls = labels.map((l, i) => {
       const lr = r + 18;
       const lx = cx + lr * Math.cos(angles[i]);
@@ -665,7 +567,6 @@ function renderRadars() {
       return `<text x="${lx}" y="${ly}" fill="#6b7280" font-size="9" text-anchor="middle" dominant-baseline="middle">${l}</text>`;
     }).join('');
 
-    // Data dots
     let dots = dims.map((v, i) => {
       const pr = r * v / 100;
       return `<circle cx="${cx + pr * Math.cos(angles[i])}" cy="${cy + pr * Math.sin(angles[i])}" r="4" fill="${scoreColor(v)}"/>`;
@@ -683,120 +584,164 @@ function renderRadars() {
 }
 
 // ─── Session Fleet ───
-function renderFleet() {
+function renderFleet(sessions) {
   const grid = document.getElementById('fleet-grid');
-  grid.innerHTML = TOP_SESSIONS.map(s => {
-    const color = scoreColor(s.c);
-    return `<div class="session-card" data-session-id="${s.name}" onclick="window.open('trace-replay.html?session=${s.name}', '_blank')" style="border-left: 4px solid ${color}">
-      <div class="sc-name">${s.label}</div>
-      <div class="sc-score" style="color:${color}">${s.c.toFixed(1)}</div>
+  grid.innerHTML = sessions.map(s => {
+    const color = scoreColor(s.composite);
+    const label = fmtSessionLabel(s.session_id);
+    const ts = s.timestamp ? s.timestamp.replace('T', ' ').slice(0, 16) : '';
+    return `<div class="session-card" data-session-id="${s.session_id}" onclick="window.open('trace-replay.html?session=${s.session_id}', '_blank')" style="border-left: 4px solid ${color}">
+      <div class="sc-name">${label}<span style="color:var(--muted);font-size:0.7rem;margin-left:8px">${ts}</span></div>
+      <div class="sc-score" style="color:${color}">${s.composite.toFixed(1)}</div>
       <div class="sc-dims">
-        <div class="sc-dim"><div class="sc-dim-label" data-tip="Consistency">C</div><div class="sc-dim-val" style="color:${scoreColor(s.cr)}">${s.cr}</div></div>
-        <div class="sc-dim"><div class="sc-dim-label" data-tip="Error Recovery">R</div><div class="sc-dim-val" style="color:${scoreColor(s.er)}">${s.er}</div></div>
-        <div class="sc-dim"><div class="sc-dim-label" data-tip="Tool Accuracy">T</div><div class="sc-dim-val" style="color:${scoreColor(s.ta)}">${s.ta}</div></div>
-        <div class="sc-dim"><div class="sc-dim-label" data-tip="Grounding">G</div><div class="sc-dim-val" style="color:${scoreColor(s.g)}">${s.g}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Consistency">C</div><div class="sc-dim-val" style="color:${scoreColor(s.consistency)}">${s.consistency.toFixed(0)}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Error Recovery">R</div><div class="sc-dim-val" style="color:${scoreColor(s.error_recovery)}">${s.error_recovery.toFixed(0)}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Tool Accuracy">T</div><div class="sc-dim-val" style="color:${scoreColor(s.tool_accuracy)}">${s.tool_accuracy.toFixed(0)}</div></div>
+        <div class="sc-dim"><div class="sc-dim-label" data-tip="Grounding">G</div><div class="sc-dim-val" style="color:${scoreColor(s.grounding)}">${s.grounding.toFixed(0)}</div></div>
       </div>
     </div>`;
   }).join('');
 }
 
-// ─── Distribution Chart ───
-function renderDistribution() {
-  const canvas = document.getElementById('historyCanvas');
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const W = Math.max(Math.floor(rect.width * dpr), 600);
-  const H = Math.max(Math.floor(rect.height * dpr), 200);
-  canvas.width = W;
-  canvas.height = H;
+// ─── Distribution Histogram ───
+function renderDistribution(distribution) {
+  const container = document.getElementById('histogram-container');
+  if (!container) return;
+  if (!distribution || distribution.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);padding:20px">No distribution data</div>';
+    return;
+  }
 
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-  const CssW = rect.width;
-  const CssH = rect.height;
-  const pad = { t: 24, r: 20, b: 48, l: 50 };
-  const cw = CssW - pad.l - pad.r;
-  const ch = CssH - pad.t - pad.b;
-
-  // Bin data
   const bins = {};
-  DISTRIBUTION.forEach(v => {
+  distribution.forEach(v => {
     const b = Math.floor(v / 5) * 5;
     bins[b] = (bins[b] || 0) + 1;
   });
   const maxCount = Math.max(...Object.values(bins));
-  const binKeys = Object.keys(bins).map(Number).sort((a,b) => a - b);
+  const binKeys = Object.keys(bins).map(Number).sort((a, b) => a - b);
 
-  // Background
-  ctx.fillStyle = 'rgba(10, 14, 26, 0.3)';
-  ctx.fillRect(0, 0, CssW, CssH);
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.t + (ch / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(pad.l, y);
-    ctx.lineTo(CssW - pad.r, y);
-    ctx.stroke();
-  }
-
-  // Bars
-  const barSlot = cw / binKeys.length;
-  const barW = Math.max(barSlot - 3, 2);
-  const labelStep = barSlot < 22 ? 6 : (barSlot < 34 ? 3 : 2);
-
-  binKeys.forEach((key, i) => {
-    const x = pad.l + barSlot * i + (barSlot - barW) / 2;
-    const h = (bins[key] / maxCount) * ch;
-    const y = pad.t + ch - h;
+  var html = '';
+  binKeys.forEach(key => {
+    const count = bins[key];
+    const pct = (count / maxCount) * 100;
     const color = scoreColor(key + 2.5);
-
-    // Bar
-    ctx.fillStyle = color + '60';
-    ctx.fillRect(x, y, barW, h);
-
-    // Top edge glow
-    ctx.fillStyle = color;
-    ctx.fillRect(x, y, barW, 2);
-
-    // Label (adaptive frequency)
-    if (i % labelStep === 0) {
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(key.toString(), x + barW / 2, CssH - 14);
-    }
+    html += '<div class="hist-bar-container">';
+    html += '<div class="hist-label">' + key + '-' + (key + 4) + '</div>';
+    html += '<div class="hist-bar-wrap">';
+    html += '<div class="hist-bar" style="width:' + pct.toFixed(1) + '%;background:' + color + '"></div>';
+    html += '<div class="hist-count">' + count + '</div>';
+    html += '</div></div>';
   });
+  container.innerHTML = html;
+}
 
-  // Y-axis labels
-  ctx.fillStyle = '#6b7280';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const val = Math.round(maxCount * (4 - i) / 4);
-    const y = pad.t + (ch / 4) * i;
-    ctx.fillText(val.toString(), pad.l - 10, y + 4);
+// ─── Alerts Panel ───
+function renderAlerts(alerts) {
+  const panel = document.getElementById('alerts-panel');
+  if (!panel) return;
+  if (!alerts || alerts.length === 0) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+  var html = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">';
+  html += '<span style="width:8px;height:8px;border-radius:50%;background:var(--danger);animation:pulse-dot 2s ease-in-out infinite"></span>';
+  html += '<strong style="font-size:0.9rem">' + alerts.length + ' Active Alert' + (alerts.length > 1 ? 's' : '') + '</strong>';
+  html += '</div><div style="display:grid;gap:8px">';
+  for (var i = 0; i < Math.min(alerts.length, 5); i++) {
+    var a = alerts[i];
+    html += '<div style="padding:10px 12px;border-radius:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);font-size:0.82rem">';
+    html += '<span style="color:var(--danger);font-weight:700;text-transform:uppercase;font-size:0.7rem;margin-right:6px">' + a.level + '</span>';
+    html += a.message;
+    html += '</div>';
+  }
+  if (alerts.length > 5) {
+    html += '<div style="color:var(--muted);font-size:0.8rem">+' + (alerts.length - 5) + ' more</div>';
+  }
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// ─── Load Report ───
+async function loadReport() {
+  try {
+    const res = await fetch('../data/monitor-report.json');
+    if (!res.ok) throw new Error('Report not found');
+    REPORT = await res.json();
+  } catch (err) {
+    console.warn('Failed to load monitor report, using fallback demo data', err);
+    REPORT = null;
+  }
+  renderAll();
+}
+
+function renderAll() {
+  const fallbackFleet = {
+    sessions_scored: 4,
+    avg_composite: 81.7,
+    avg_consistency: 78.4,
+    avg_error_recovery: 70.0,
+    avg_tool_accuracy: 38.7,
+    avg_grounding: 90.2,
+  };
+  const fallbackSessions = [
+    { session_id: "demo-good-agent", timestamp: "", composite: 100.0, consistency: 100.0, error_recovery: 100.0, tool_accuracy: 100.0, grounding: 100.0 },
+    { session_id: "demo-mixed-agent", timestamp: "", composite: 91.7, consistency: 91.7, error_recovery: 86.0, tool_accuracy: 83.3, grounding: 98.0 },
+    { session_id: "demo-flaky-agent", timestamp: "", composite: 57.7, consistency: 57.7, error_recovery: 29.0, tool_accuracy: 73.3, grounding: 87.0 },
+    { session_id: "demo-hallucinating-agent", timestamp: "", composite: 25.6, consistency: 25.6, error_recovery: 49.0, tool_accuracy: 45.0, grounding: 7.0 },
+  ];
+  const fallbackDistribution = [
+    25,26,30,41,43,47,48,50,50,50,50,50,51,51,53,57,57,57,58,58,
+    59,60,60,61,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,62,
+    63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,
+    63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,63,
+    63,63,63,63,63,63,63,64,64,65,65,65,65,66,67,68,68,69,70,70,
+    70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,70,
+    71,72,72,72,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,73,
+    74,74,74,74,74,74,74,74,74,74,75,75,75,75,75,75,75,75,75,75,
+    76,76,77,77,77,77,77,77,77,78,78,81,81,81,81,81,81,81,81,81,
+    81,81,81,92,100
+  ];
+
+  const fleet = REPORT ? REPORT.fleet_status : fallbackFleet;
+  const sessions = REPORT ? REPORT.sessions : fallbackSessions;
+  const distribution = REPORT ? REPORT.distribution : fallbackDistribution;
+  const alerts = REPORT ? REPORT.alerts : [];
+  const generated = REPORT ? REPORT.generated_at : '';
+
+  // Update topbar meta
+  const meta = document.querySelector('.topbar .meta');
+  if (meta) {
+    const ts = generated ? new Date(generated).toLocaleString() : 'live';
+    meta.textContent = `${fleet.sessions_scored} sessions · last updated ${ts}`;
   }
 
-  // X-axis caption
-  ctx.fillStyle = '#6b7280';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('Score Range →', CssW / 2, CssH - 2);
+  const avgComposite = fleet.avg_composite;
+  animateGauge(avgComposite);
+  renderDimensions(fleet);
+  renderRadars();
+  renderFleet(sessions);
+  renderDistribution(distribution);
+  renderAlerts(alerts);
+
+  // Update section headings
+  const fleetHeading = document.getElementById('fleet-heading');
+  if (fleetHeading) fleetHeading.textContent = 'Session Fleet (Top ' + sessions.length + ')';
+  const distHeading = document.getElementById('dist-heading');
+  if (distHeading) distHeading.textContent = 'Score Distribution — Fleet (' + distribution.length + ' sessions)';
 }
 
 // ─── Init ───
 window.addEventListener('DOMContentLoaded', () => {
-  // Compute average composite
-  const avgComposite = TOP_SESSIONS.reduce((a, s) => a + s.c, 0) / TOP_SESSIONS.length;
-
-  animateGauge(81.7);
-  renderDimensions();
-  renderRadars();
-  renderFleet();
-  renderDistribution();
+  loadReport();
+  // Refresh every 30s if report file updates
+  setInterval(loadReport, 30000);
 });
 </script>
 </body>
