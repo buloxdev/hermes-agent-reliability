@@ -747,8 +747,7 @@ function renderAll() {
 // ─── Init ───
 window.addEventListener('DOMContentLoaded', () => {
   loadReport();
-  // Refresh every 5 min if report file updates (monitors usually run hourly)
-  setInterval(loadReport, 300000);
+  // Manual refresh only — reload the page or re-run monitor.py
 });
 </script>
 </body>
